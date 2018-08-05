@@ -28,7 +28,7 @@ typedef union{
 	}Angle_Com_T;
 }Angle_Com_U;
 
-#define FiFilter_Counting	10
+#define FiFilter_Counting	5
 
 typedef struct
 {
@@ -74,8 +74,8 @@ bool COM_Init(HANDLE *h_Com, char *Com_Name, int Band){
 	dcb1.ByteSize = 8;//每个字节有8位
 	dcb1.Parity = NOPARITY;//无奇偶校验位
 	dcb1.StopBits = ONE5STOPBITS;//一个停止位
-	//dcb1.fParity = FALSE;
-	//dcb1.fNull = FALSE;
+	dcb1.fParity = FALSE;
+	dcb1.fNull = FALSE;
 	SetCommState(*h_Com, &dcb1);
 	PurgeComm(*h_Com, PURGE_TXCLEAR | PURGE_RXCLEAR);//清空缓冲区
 	return TRUE;
@@ -108,6 +108,7 @@ UINT8 Check_Sum(UINT8 *Data, UINT8 len){
 	}
 	return Sum;
 }
+
 void Set_FiFilter(FiFilter_T *FiFilter, float Data)
 {
 	FiFilter->FiFilter[FiFilter->Counting++] = Data;
@@ -132,10 +133,16 @@ float Get_FiFilter(FiFilter_T *FiFilter){
 		}
 		Count++;
 	}
-	return (float)((Sum - Max - Min) / FiFilter_Counting);
+	return (float)((Sum - Max - Min) / (FiFilter_Counting - 2));
 }
 
+#define alpha 0//底座与水平面的夹角
+
+#if DEBUG_GYRO == 0
 DWORD WINAPI Comm_Process(LPVOID threadNum)
+#else
+int main(int argc, char *argv[])
+#endif
 {
 	Gyro_Data_U Gyro_Data;
 	float X = 0, Y = 0, Z = 0;
@@ -144,13 +151,22 @@ DWORD WINAPI Comm_Process(LPVOID threadNum)
 	Angle_Com_U Angle_Com;
 	FiFilter_T FiFilter[3] = { { 0, }, { 0, }, { 0, } };
 
-	if (COM_Init(&hCom1, "COM3", 115200) == FALSE){
-		printf("打开读串口失败!");
+	char a[10], b[10];
+	FILE *fpRead = fopen("com.txt", "r");
+	if (fpRead == NULL)
+	{
+		return 0;
+	}
+	fscanf(fpRead, "%s", a);
+	fscanf(fpRead, "%s", b);
+
+	if (COM_Init(&hCom1, a, 115200) == FALSE){
+		printf("打开读串口失败!\n");
 		Exit_ProcessFlag = false;
 	}
 
-	if (COM_Init(&hCom2, "COM12", 19200) == FALSE){
-		printf("打开写串口失败!");
+	if (COM_Init(&hCom2, b, 115200) == FALSE){
+		printf("打开写串口失败!\n");
 		Exit_ProcessFlag = false;
 	}
 
@@ -158,7 +174,7 @@ DWORD WINAPI Comm_Process(LPVOID threadNum)
 	{
 		if (!ReadFile(hCom1, Gyro_Data.str, rCount, &rCount, NULL))
 		{
-			printf("读串口失败!");
+			printf("读串口失败!\n");
 			break;
 		}
 		PurgeComm(hCom1, PURGE_TXCLEAR | PURGE_RXCLEAR);
@@ -172,19 +188,20 @@ DWORD WINAPI Comm_Process(LPVOID threadNum)
 			if (Gyro_Data.Gyro_Data_T.CRC == crc){
 				X = *(float *)&Gyro_Data.str[7];
 
-				Set_FiFilter(&FiFilter[1], *(float *)&Gyro_Data.str[11]);
+				Set_FiFilter(&FiFilter[1], *(float *)&Gyro_Data.str[15]);
 				Y = Get_FiFilter(&FiFilter[1]);
 				Angle_Com.Angle_Com_T.A = Y;
 
-				Set_FiFilter(&FiFilter[2], *(float *)&Gyro_Data.str[15]);
+				Set_FiFilter(&FiFilter[2], *(float *)&Gyro_Data.str[11]);
 				Z = Get_FiFilter(&FiFilter[2]);
-				Angle_Com.Angle_Com_T.B = Z;
+				Angle_Com.Angle_Com_T.B = Z + alpha - Y * alpha / 90;
 
 				Angle_Com.Angle_Com_T.Sum = Check_Sum(Angle_Com.str, 8);
 				PurgeComm(hCom2, PURGE_TXCLEAR | PURGE_RXCLEAR);
-				if (!WriteFile(hCom2, Angle_Com.str, wCount, &wCount, NULL))
+				//strcpy((char *)Angle_Com.str, "STM32F030");
+				if (!WriteFile(hCom2, Angle_Com.str, wCount, &wCount, NULL))//前四个字节对应的是水平面旋转角度，后面跟随的是垂直平面的旋转角度
 				{
-					printf("写串口失败!");
+					printf("写串口失败!\n");
 					break;
 				}
 			}

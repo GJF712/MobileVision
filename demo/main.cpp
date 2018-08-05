@@ -1,17 +1,21 @@
 #include <opencv2\opencv.hpp>
 #include "comm.h"
+#include <stdint.h>
+
 using namespace std;
 using namespace cv;
 
+#if DEBUG_GYRO == 0
 int main(int argc, char *argv[])
 {
+#if DEBUG_CAMM == 0
 	DWORD threadID;
 	if (CreateThread(NULL, 0, Comm_Process, NULL, 0, &threadID) == NULL)
 	{
 		printf("创建线程失败!");
 		Exit_ProcessFlag = false;
 	}
-
+#endif
 	const int wxScreen[] = { 1920, 1080 };//单块屏幕大小
 
 	const int wxFrameWLP[] = { 1920, 1080, 30 };// 摄像头像素大小以及帧率
@@ -60,8 +64,27 @@ int main(int argc, char *argv[])
 	printf("%d %d %d %d %lf\n", frame0.cols, frame0.rows, frame0.depth(), frame0.channels(), cap0.get(CV_CAP_PROP_FPS));
 	printf("%d %d %d %d %lf\n", frame1.cols, frame1.rows, frame1.depth(), frame1.channels(), cap1.get(CV_CAP_PROP_FPS));
 
-	while (Exit_ProcessFlag && !frame0.empty() && !frame1.empty())
+	bool Switch_Cam = true;
+	uint8_t Get_CammFrameFailed[2];
+	while (Exit_ProcessFlag)// && !frame0.empty() && !frame1.empty())
 	{
+		if (frame0.empty()){
+			if (++Get_CammFrameFailed[0] == 5){
+				break;
+			}
+		}
+		else if (Get_CammFrameFailed[0] != 0){
+			Get_CammFrameFailed[0] = 0;
+		}
+
+		if (frame1.empty()){
+			if (++Get_CammFrameFailed[1] == 5){
+				break;
+			}
+		}
+		else if (Get_CammFrameFailed[1] != 0){
+			Get_CammFrameFailed[1] = 0;
+		}
 
 		frame0.convertTo(CopyFrame0, CopyFrame0.type(), 1, 0);
 		frame1.convertTo(CopyFrame1, CopyFrame1.type(), 1, 0);
@@ -71,8 +94,12 @@ int main(int argc, char *argv[])
 		{
 			break;
 		}
-		cap0 >> frame0;
-		cap1 >> frame1;
+		if (Switch_Cam){
+			cap0 >> frame0;
+		}else{
+			cap1 >> frame1;
+		}
+		Switch_Cam = !Switch_Cam;
 	}
 
 	cap0.release();
@@ -86,6 +113,7 @@ int main(int argc, char *argv[])
 	Sleep(1000);
 	return 0;
 }
+#endif
 
 //int main(void){
 //	Mat image = imread("dh.jpg");
