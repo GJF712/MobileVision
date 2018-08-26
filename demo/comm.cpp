@@ -136,14 +136,33 @@ float Get_FiFilter(FiFilter_T *FiFilter){
 	return (float)((Sum - Max - Min) / (FiFilter_Counting - 2));
 }
 
+DWORD WINAPI Exit_Process(LPVOID threadNum){
+	while (Exit_ProcessFlag){
+		char c = getchar();
+		if ((c == 27) || (c == 'q')){
+			Exit_ProcessFlag = false;
+			break;
+		}
+	}
+	return 0;
+}
+
+
 #define alpha 0//底座与水平面的夹角
 
 #if DEBUG_GYRO == 0
 DWORD WINAPI Comm_Process(LPVOID threadNum)
+{
 #else
 int main(int argc, char *argv[])
-#endif
 {
+	DWORD threadID;
+	if (CreateThread(NULL, 0, Exit_Process, NULL, 0, &threadID) == NULL)
+	{
+		printf("创建线程失败!");
+		Exit_ProcessFlag = false;
+	}
+#endif
 	Gyro_Data_U Gyro_Data;
 	float X = 0, Y = 0, Z = 0;
 	DWORD rCount = 19;//读取的字节数
@@ -169,13 +188,25 @@ int main(int argc, char *argv[])
 		printf("打开写串口失败!\n");
 		Exit_ProcessFlag = false;
 	}
-
+	UINT8 Read_ComFailed = 0;
 	while (Exit_ProcessFlag)
 	{
 		if (!ReadFile(hCom1, Gyro_Data.str, rCount, &rCount, NULL))
 		{
 			printf("读串口失败!\n");
-			break;
+			if (++Read_ComFailed == 10){
+				break;
+			}
+			else{
+				if (COM_Init(&hCom1, a, 115200) == FALSE){
+					printf("打开读串口失败!\n");
+				}
+				Sleep(500);
+				continue;
+			}
+		}
+		else if (Read_ComFailed != 0){
+			Read_ComFailed = 0;
 		}
 		PurgeComm(hCom1, PURGE_TXCLEAR | PURGE_RXCLEAR);
 		if ((Gyro_Data.Gyro_Data_T.PRE == 0x5A) &&

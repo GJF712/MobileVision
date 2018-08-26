@@ -5,7 +5,7 @@
 #include <stdbool.h>
 #include <windows.h>
 
-#define DEBUG_GYRO 0
+#define DEBUG_GYRO 1
 #define DEBUG_CAMM 0
 
 extern bool Exit_ProcessFlag;

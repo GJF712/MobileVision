@@ -18,7 +18,7 @@ int main(int argc, char *argv[])
 #endif
 	const int wxScreen[] = { 1920, 1080 };//单块屏幕大小
 
-	const int wxFrameWLP[] = { 1920, 1080, 30 };// 摄像头像素大小以及帧率
+	const int wxFrameWLP[] = { 1920, 1080, 60 };// 摄像头像素大小以及帧率
 
 	char c;
 
@@ -37,12 +37,14 @@ int main(int argc, char *argv[])
 	VideoCapture cap0 = VideoCapture(0);
 	if (!cap0.isOpened()){
 		cvDestroyAllWindows();
+		printf("相机0读取失败\n");
 		return -2;
 	}
 	VideoCapture cap1 = VideoCapture(1);
 	if (!cap1.isOpened()){
 		cap0.release();
 		cvDestroyAllWindows();
+		printf("相机1读取失败\n");
 		return -3;
 	}
 
@@ -64,12 +66,13 @@ int main(int argc, char *argv[])
 	printf("%d %d %d %d %lf\n", frame0.cols, frame0.rows, frame0.depth(), frame0.channels(), cap0.get(CV_CAP_PROP_FPS));
 	printf("%d %d %d %d %lf\n", frame1.cols, frame1.rows, frame1.depth(), frame1.channels(), cap1.get(CV_CAP_PROP_FPS));
 
-	bool Switch_Cam = true;
+	//bool Switch_Cam = true;
 	uint8_t Get_CammFrameFailed[2];
 	while (Exit_ProcessFlag)// && !frame0.empty() && !frame1.empty())
 	{
 		if (frame0.empty()){
-			if (++Get_CammFrameFailed[0] == 5){
+			if (++Get_CammFrameFailed[0] == 50){
+				printf("相机0读取失败\n");
 				break;
 			}
 		}
@@ -78,7 +81,8 @@ int main(int argc, char *argv[])
 		}
 
 		if (frame1.empty()){
-			if (++Get_CammFrameFailed[1] == 5){
+			if (++Get_CammFrameFailed[1] == 50){
+				printf("相机1读取失败\n");
 				break;
 			}
 		}
@@ -89,17 +93,17 @@ int main(int argc, char *argv[])
 		frame0.convertTo(CopyFrame0, CopyFrame0.type(), 1, 0);
 		frame1.convertTo(CopyFrame1, CopyFrame1.type(), 1, 0);
 		imshow("frame", frame);
-		c = waitKey(1000 / wxFrameWLP[2]);
+		c = waitKey(300);//1000 / wxFrameWLP[2]);
 		if ((c == 27) || (c == 'q'))
 		{
 			break;
 		}
-		if (Switch_Cam){
+		//if (Switch_Cam){
 			cap0 >> frame0;
-		}else{
+		//}else{
 			cap1 >> frame1;
-		}
-		Switch_Cam = !Switch_Cam;
+		//}
+		//Switch_Cam = !Switch_Cam;
 	}
 
 	cap0.release();
@@ -111,6 +115,8 @@ int main(int argc, char *argv[])
 
 	Exit_ProcessFlag = false;
 	Sleep(1000);
+	printf("按回车键退出:");
+	getchar();
 	return 0;
 }
 #endif
